@@ -2,6 +2,7 @@ define([
   'angular',
   'jquery',
   'kbn',
+  'csv',
   'lodash',
   'config',
   'moment',
@@ -9,7 +10,7 @@ define([
   'filesaver',
   'blob'
 ],
-function (angular, $, kbn, _, config, moment, Modernizr) {
+function (angular, $, kbn, csv, _, config, moment, Modernizr) {
   'use strict';
 
   var module = angular.module('kibana.services');
@@ -520,6 +521,48 @@ function (angular, $, kbn, _, config, moment, Modernizr) {
       } else {
         this.cancel_scheduled_refresh();
       }
+    };
+
+    this.export = function(type) {
+      var queryIds = querySrv.idsByMode([0]);
+      var queries = querySrv.getQueryObjs(queryIds);
+      var boolQuery = ejs.BoolQuery();
+      _.each(queries,function(q) {
+        boolQuery = boolQuery.should(querySrv.toEjsObj(q));
+      });
+
+      var request = ejs.Request()
+        .indices(this.indices[0])
+        .query(
+          ejs.FilteredQuery(
+            boolQuery,
+            filterSrv.getBoolFilter(filterSrv.ids())
+          ))
+        .size(10000);
+
+      var fn = function(response) {
+        var hits = response.hits.hits;
+        var first = _.first(hits);
+        var keys = _.keys(kbn.flatten_json(first));
+        var data = _.map(hits, function(hit) {
+          hit = kbn.flatten_json(hit);
+          return _.map(keys, function(key) {
+            return hit[key];
+          });
+        });
+
+        switch(type) {
+          case 'csv':
+            var csvString = csv.toString([keys].concat(data));
+            var blob = new Blob([csvString], {type: "text/tsv;charset=utf-8"});
+            window.saveAs(blob, this.current.title+'-'+new Date().getTime()+'.csv');
+            break;
+          default:
+            throw Error('Unsupported export type: ' + type);
+        }
+      };
+
+      request.doSearch().then(_.bind(fn, this));
     };
 
 

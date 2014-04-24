@@ -8,6 +8,7 @@ require.config({
     config:                   '../config',
     settings:                 'components/settings',
     kbn:                      'components/kbn',
+    csv:                      'components/csv',
 
     vendor:                   '../vendor',
     css:                      '../vendor/require/css',
